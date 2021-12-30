@@ -1,0 +1,79 @@
+#!/bin/bash
+set -euo pipefail
+shopt -s inherit_errexit
+WD="$(realpath $(dirname $0)/..)/"
+
+NETWORK_NAME="$1"
+IP_ADDRESS_RESTORE_PATH="/tmp/hostbridge-${RANDOM}"
+
+pause_name() { echo "${NETWORK_NAME}-hostbridge"; }
+pause_image() { echo "k8s.gcr.io/pause:3.5"; }
+pod_pid() { podman inspect --type container --format {{.State.Pid}} "$1"; }
+pause_pod_pid() { pod_pid `pause_name`; }
+veth_ifname() { echo "${NETWORK_NAME}"; }
+bridge_name() { echo "br${NETWORK_NAME}"; }
+ip_address_restore_onto_device() {
+  ip address showdump \
+    |grep -E '^\s+inet' \
+    |sed \
+      -Ee 's/inet6? //' \
+      -e 's/eth0//' \
+      -e 's/tentative//' \
+    |while read LINE; do
+      sudo ip address add ${LINE} dev "$1"
+    done
+}
+
+sudo --validate
+
+if ! podman network exists "${NETWORK_NAME}"; then
+  echo "podman network ${NETWORK_NAME} does not exist" 1>&2
+  exit 1
+fi
+
+# Creation of pause pod triggers creation of a veth pair attached to the bridge
+# provided cni network.
+podman stop `pause_name` \
+  &>/dev/null \
+  || true
+# Stopping the container removes the interface only if it was the last one to
+# detach from the cni network. A removal is issued since the cni network could
+# have other attached pods left.
+sudo ip link delete `veth_ifname` \
+  &>/dev/null \
+  || true
+podman run \
+  --rm \
+  --detach \
+  --name `pause_name` \
+  --network "${NETWORK_NAME}" \
+  `pause_image` \
+    &>/dev/null
+
+sudo nsenter -n -t `pause_pod_pid` ip address save eth0 >"${IP_ADDRESS_RESTORE_PATH}"
+sudo nsenter -n -t `pause_pod_pid` ip link set eth0 down
+sudo nsenter -n -t `pause_pod_pid` ip link set eth0 name `veth_ifname`
+sudo nsenter -n -t `pause_pod_pid` ip link set `veth_ifname` netns 1
+
+# If the network can stay active without the pause pod, it could be stopped -
+# and due to --rm, removed - now. As soon as the last pod is unassigned from
+# the cni network, podman destroys the veth.
+
+#podman stop `pause_name` \
+#  &>/dev/null \
+#  || true
+
+if [ $# -ge 2 ]; then
+  sudo ip link delete name `bridge_name`|| true
+  sudo ip link add name `bridge_name` type bridge
+  ip_address_restore_onto_device `bridge_name` <"${IP_ADDRESS_RESTORE_PATH}"
+  sudo ip link set `bridge_name` up
+
+  for IFACE in $@; do
+    sudo ip link set "${IFACE}" master `bridge_name`;
+  done
+else
+  ip_address_restore_onto_device `veth_ifname` <"${IP_ADDRESS_RESTORE_PATH}"
+fi
+
+sudo ip link set `veth_ifname` up
