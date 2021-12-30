@@ -77,3 +77,4 @@ else
 fi
 
 sudo ip link set `veth_ifname` up
+rm "${IP_ADDRESS_RESTORE_PATH}"
