@@ -31,8 +31,6 @@ if ! podman network exists "${NETWORK_NAME}"; then
   exit 1
 fi
 
-# Creation of pause pod triggers creation of a veth pair attached to the bridge
-# provided cni network.
 podman stop `pause_name` \
   &>/dev/null \
   || true
@@ -42,6 +40,8 @@ podman stop `pause_name` \
 sudo ip link delete `veth_ifname` \
   &>/dev/null \
   || true
+# Creation of pause pod triggers creation of a veth pair attached to the bridge
+# provided cni network.
 podman run \
   --rm \
   --detach \
