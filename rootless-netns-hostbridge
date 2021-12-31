@@ -64,13 +64,15 @@ sudo nsenter -n -t `pause_pod_pid` ip link set `veth_ifname` netns 1
 #  || true
 
 if [ $# -ge 2 ]; then
-  sudo ip link delete name `bridge_name`|| true
+  sudo ip link delete name `bridge_name` \
+	  &>/dev/null \
+	  || true
   sudo ip link add name `bridge_name` type bridge
   ip_address_restore_onto_device `bridge_name` <"${IP_ADDRESS_RESTORE_PATH}"
   sudo ip link set `bridge_name` up
 
   for IFACE in $@; do
-    sudo ip link set "${IFACE}" master `bridge_name`;
+    sudo ip link set "${IFACE}" master `bridge_name`
   done
 else
   ip_address_restore_onto_device `veth_ifname` <"${IP_ADDRESS_RESTORE_PATH}"
