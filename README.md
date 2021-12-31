@@ -40,9 +40,12 @@ $ curl 10.89.0.2
 Clean up
 ---
 
+If the pause pod is the only pod left attached to the cni network,
 ```
 podman stop ${NAME}-hostbridge
 ```
+Otherwise the veth pair interface will stay in host netns until the remaining
+ones are detached.
 
 * If used to create a bridge
    ```
