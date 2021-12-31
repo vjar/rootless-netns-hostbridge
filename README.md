@@ -35,3 +35,16 @@ $ curl 10.89.0.2
 
 * `./example host_interface_dhcp my-network enp1s0` works as an example on
   attaching a DHCP server pod to a physical ethernet LAN.
+
+
+Clean up
+---
+
+```
+podman stop ${NAME}-hostbridge
+```
+
+* If used to create a bridge
+   ```
+   sudo ip link delete br${NAME}
+   ```
