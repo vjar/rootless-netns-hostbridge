@@ -1,0 +1,11 @@
+FROM registry.fedoraproject.org/fedora:35 AS base
+
+FROM base AS dhcp
+RUN dnf -y install dnsmasq && \
+    dnf clean all
+
+FROM base AS qemu
+RUN dnf -y install iproute qemu-system-x86 && \
+    dnf clean all
+ADD entrypoint.sh /bin
+ENTRYPOINT /bin/entrypoint.sh

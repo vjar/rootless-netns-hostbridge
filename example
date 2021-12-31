@@ -1,0 +1,115 @@
+#!/bin/bash
+set -euo pipefail
+shopt -s inherit_errexit
+WD="$(realpath $(dirname $0))"
+
+label() { echo "rootless-netns-hostbridge-examples"; }
+dhcp_name() { echo "$(label)-dhcp"; }
+qemu_name() { echo "$(label)-qemu"; }
+
+dhcp_logs_tail() {
+	podman logs \
+		--tail 0 \
+		--follow \
+		`dhcp_name` \
+		2>&1
+}
+
+exit_after_dhcpoffer() {
+	while read LINE; do
+		echo "$LINE"
+		[[ "$LINE" =~ "DHCPOFFER" ]] \
+			&& podman stop \
+				$(podman ps \
+					--no-trunc \
+					--format "{{ .ID }}" \
+					--filter label=`label` \
+				) \
+			&& kill -s SIGTERM $$ # `podman logs` doesn't exit otherwise
+	done
+}
+
+example_dhcp() {
+	network_gateway_address() {
+		podman network inspect "$1" \
+			|grep '"gateway":' \
+			|grep -Eo '[0-9.]+",?$' \
+			|grep -Eo '[0-9.]+'
+	}
+	dhcp_gateway() { network_gateway_address "$1"; }
+	dhcp_gateway_net() { F=$(network_gateway_address "$1"); echo "${F%.*}."; }
+	dhcp_range_from() { echo "$(dhcp_gateway_net "$1")200"; }
+	dhcp_range_to() { echo "$(dhcp_gateway_net "$1")210"; }
+	example_name() { dhcp_name; }
+	podman build \
+		--target dhcp \
+		--tag `example_name` \
+		examples
+	podman stop `example_name` \
+		&>/dev/null \
+		|| true
+	podman run \
+		--cap-add NET_ADMIN,NET_RAW \
+		--detach \
+		--entrypoint "" \
+		--label `label` \
+		--name `example_name` \
+		--network "$1" \
+		--rm \
+		`example_name` \
+		dnsmasq \
+			--dhcp-option=option:router,`dhcp_gateway "$1"` \
+			--dhcp-range=`dhcp_range_from "$1"`,`dhcp_range_to "$1"` \
+			--interface="eth0" \
+			--log-dhcp \
+			--no-daemon \
+			--port 0
+}
+
+example_qemu() {
+	example_name() { qemu_name; }
+	podman build \
+		--target qemu \
+		--tag `example_name` \
+		examples
+	podman stop `example_name` \
+		&>/dev/null \
+		|| true
+	podman run \
+		--detach \
+		--label `label` \
+		--name `example_name` \
+		--network "$1" \
+		--privileged \
+		--rm \
+		`example_name`
+}
+
+example_qemu_dhcp() {
+	example_dhcp "$1"
+	example_qemu "$1"
+	dhcp_logs_tail |exit_after_dhcpoffer
+}
+
+example_host_interface_dhcp() {
+	$WD/rootless-netns-hostbridge "$1" "$2"
+	example_dhcp "$1"
+	dhcp_logs_tail |exit_after_dhcpoffer
+}
+
+case "${1:-}" in
+	qemu_dhcp)
+		shift
+		example_qemu_dhcp $*
+		;;
+	host_interface_dhcp)
+		shift
+		example_host_interface_dhcp $*
+		;;
+	"")
+		echo "usage: example [example-name] ..."
+		;;
+	*)
+		echo "example $1 does not exist"
+		;;
+esac

@@ -32,3 +32,6 @@ $ curl 10.89.0.2
 <title>Welcome to nginx!</title>
 ...
 ```
+
+* `./example host_interface_dhcp my-network enp1s0` works as an example on
+  attaching a DHCP server pod to a physical ethernet LAN.
