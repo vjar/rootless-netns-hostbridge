@@ -21,7 +21,8 @@ ip_address_restore_onto_device() {
       -e 's/tentative//' \
     |while read LINE; do
       sudo ip address add ${LINE} dev "$1"
-    done
+    done \
+    || true
 }
 
 sudo --validate
