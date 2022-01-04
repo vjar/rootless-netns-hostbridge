@@ -49,7 +49,7 @@ podman run \
   --name `pause_name` \
   --network "${NETWORK_NAME}" \
   `pause_image` \
-    &>/dev/null
+    >/dev/null
 
 sudo nsenter -n -t `pause_pod_pid` ip address save eth0 >"${IP_ADDRESS_RESTORE_PATH}"
 sudo nsenter -n -t `pause_pod_pid` ip link set eth0 down
