@@ -15,10 +15,10 @@ dhcp_logs_tail() {
 		2>&1
 }
 
-exit_after_dhcpoffer() {
+exit_after_dhcpack() {
 	while read LINE; do
 		echo "$LINE"
-		[[ "$LINE" =~ "DHCPOFFER" ]] \
+		[[ "$LINE" =~ "DHCPACK" ]] \
 			&& podman stop \
 				$(podman ps \
 					--no-trunc \
@@ -88,13 +88,13 @@ example_qemu() {
 example_qemu_dhcp() {
 	example_dhcp "$1"
 	example_qemu "$1"
-	dhcp_logs_tail |exit_after_dhcpoffer
+	dhcp_logs_tail |exit_after_dhcpack
 }
 
 example_host_interface_dhcp() {
 	$WD/rootless-netns-hostbridge "$1" "$2"
 	example_dhcp "$1"
-	dhcp_logs_tail |exit_after_dhcpoffer
+	dhcp_logs_tail |exit_after_dhcpack
 }
 
 case "${1:-}" in
