@@ -7,6 +7,7 @@ label() { echo "rootless-netns-hostbridge-examples"; }
 dhcp_name() { echo "$(label)-dhcp"; }
 qemu_name() { echo "$(label)-qemu"; }
 rootless_netns_if_id() { podman unshare --rootless-cni ip link show $1 |grep --max-count 1 -Eo '^[0-9]+'; }
+list_of_labeled_containers() { podman container ps --no-trunc --format "{{ .ID }}" --filter label=`label`; }
 
 dhcp_logs_tail() {
 	podman logs \
@@ -19,14 +20,9 @@ dhcp_logs_tail() {
 exit_after_dhcpack() {
 	while read LINE; do
 		echo "$LINE"
-		[[ "$LINE" =~ "DHCPACK" ]] \
-			&& podman stop \
-				$(podman ps \
-					--no-trunc \
-					--format "{{ .ID }}" \
-					--filter label=`label` \
-				) \
-			&& kill -s SIGTERM $$ # `podman logs` doesn't exit otherwise
+		[[ "$LINE" =~ "DHCPACK" ]] || continue
+		podman container stop `list_of_labeled_containers`
+		kill -s SIGTERM $$ # `podman logs` doesn't exit otherwise
 	done
 }
 
