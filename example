@@ -58,6 +58,9 @@ example_dhcp() {
 		dnsmasq \
 			--dhcp-option=option:router,`dhcp_gateway "$1"` \
 			--dhcp-range=`dhcp_range_from "$1"`,`dhcp_range_to "$1"` \
+			--dhcp-option=\#undi,option:bootfile-name,mock.kpxe \
+			--dhcp-option=\#undi,option:tftp-server,0.0.0.0 \
+			--dhcp-userclass=set:pxe,PXEClient \
 			--interface="eth0" \
 			--log-dhcp \
 			--no-daemon \
