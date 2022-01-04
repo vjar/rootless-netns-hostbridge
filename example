@@ -22,7 +22,9 @@ exit_after_dhcpack() {
 		echo "$LINE"
 		[[ "$LINE" =~ "DHCPACK" ]] || continue
 		podman container stop `list_of_labeled_containers`
-		podman unshare --rootless-cni ip link delete macvtap0
+		podman unshare --rootless-cni ip link delete macvtap0 \
+			&>/dev/null \
+			|| true
 		kill -s SIGTERM $$ # `podman logs` doesn't exit otherwise
 	done
 }
